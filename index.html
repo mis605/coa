@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="id" class="light">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="COA Manage Portal — Dashboard Invoice & Chart of Accounts berbasis Google Sheets">
+  <title>COA Manage Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          colors: {
+            brand: {
+              50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe',
+              300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6',
+              600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+
+    /* ===== LOADER ANIMATION ===== */
+    .loader { border-top-color: #3b82f6; animation: spinner 0.8s linear infinite; }
+    @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    /* ===== BODY & TRANSITIONS ===== */
+    body { transition: background-color 0.4s ease, color 0.4s ease; }
+
+    /* ===== GRADIENT HEADER ===== */
+    .app-header-bg {
+      background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 40%, #2563eb 70%, #0ea5e9 100%);
+    }
+    .dark .app-header-bg {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f2044 100%);
+    }
+
+    /* ===== TABLE ===== */
+    .table-wrap { overflow-x: auto; border-radius: 0.75rem; }
+    .table-wrap::-webkit-scrollbar { height: 6px; width: 6px; }
+    .table-wrap::-webkit-scrollbar-track { background: transparent; }
+    .table-wrap::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+    .dark .table-wrap::-webkit-scrollbar-thumb { background: #334155; }
+
+    .sticky-col { position: sticky; top: 0; z-index: 20; }
+    .tbl-head th { white-space: nowrap; min-width: 130px; }
+    .tbl-row { transition: background-color 0.15s ease; }
+
+    /* ===== CELL INPUT (Update Mode) ===== */
+    .cell-input {
+      width: 100%; padding: 0.6rem 0.75rem; font-size: 0.8rem;
+      border: none; background: transparent; text-align: center;
+      font-weight: 600; color: #2563eb; border-radius: 0.375rem;
+      transition: background 0.15s, outline 0.15s;
+    }
+    .cell-input:focus { outline: 2px solid #3b82f6; background: rgba(59,130,246,0.06); }
+    .dark .cell-input { color: #93c5fd; }
+    .dark .cell-input:focus { background: rgba(96,165,250,0.1); }
+
+    /* ===== NAV ACTIVE ===== */
+    .nav-pill.active {
+      background: rgba(59, 130, 246, 0.12);
+      color: #2563eb;
+      font-weight: 700;
+    }
+    .dark .nav-pill.active {
+      background: rgba(96, 165, 250, 0.15);
+      color: #60a5fa;
+    }
+
+    /* ===== BADGE STATUS ===== */
+    .status-badge { cursor: pointer; user-select: none; border-radius: 99px; padding: 0.3rem 0.85rem; }
+    .status-badge:hover { filter: brightness(1.1); }
+
+    /* ===== CONNECTED BADGE HIDDEN BTN ===== */
+    #connectedClickZone { cursor: pointer; }
+    #connectedClickZone:hover .status-text { text-decoration: underline dotted; }
+
+    /* ===== MODAL OVERLAY ===== */
+    .modal-overlay {
+      background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(8px);
+    }
+
+    /* ===== FADE IN ANIMATION ===== */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in { animation: fadeInUp 0.35s ease both; }
+
+    /* ===== GLASSMORPHISM CARDS ===== */
+    .glass-card {
+      background: rgba(255, 255, 255, 0.8);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.6);
+    }
+    .dark .glass-card {
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    /* ===== STAT CARDS ===== */
+    .stat-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .stat-card:hover { transform: translateY(-2px); }
+
+    /* ===== ALL DATA TABLE MAX HEIGHT ===== */
+    #allDataTableWrap { max-height: calc(100vh - 340px); min-height: 300px; }
+
+    /* ===== FILTER BAR ===== */
+    .filter-bar {
+      background: rgba(248, 250, 252, 0.9);
+      border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+    }
+    .dark .filter-bar {
+      background: rgba(15, 23, 42, 0.6);
+      border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+    }
+
+    /* ===== SEARCH INPUT ===== */
+    .search-glow:focus { box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); }
+  </style>
+</head>
+
+<body class="bg-slate-50 dark:bg-slate-950 min-h-screen text-slate-900 dark:text-slate-100">
+
+  <!-- ========== APP HEADER ========== -->
+  <header class="app-header-bg shadow-xl mb-0">
+    <div class="max-w-[98%] mx-auto px-4 lg:px-6 py-4 flex items-center justify-between">
+
+      <!-- Brand -->
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shadow-inner">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-white font-black text-base tracking-tight leading-none">COA Manage Portal</h1>
+          <p class="text-blue-200 text-[10px] font-medium mt-0.5 tracking-widest uppercase">Invoice · Chart of Accounts</p>
+        </div>
+      </div>
+
+      <!-- Right Controls -->
+      <div class="flex items-center gap-3">
+        <!-- Status Badge — klik untuk buka Update Panel (tersembunyi) -->
+        <div id="connectedClickZone" onclick="handleStatusClick()" title="COA Database Status"
+          class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-all">
+          <div id="statusDot" class="w-2 h-2 rounded-full bg-slate-400 transition-colors duration-500"></div>
+          <span id="statusText" class="status-text text-[10px] font-bold uppercase tracking-widest text-white/70">Loading...</span>
+        </div>
+
+        <!-- Dark Mode Toggle -->
+        <button id="themeBtn" onclick="toggleDarkMode()" aria-label="Toggle dark mode"
+          class="w-9 h-9 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center transition-all">
+          <svg id="sunIcon" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z"/>
+          </svg>
+          <svg id="moonIcon" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========== MAIN CONTENT ========== -->
+  <main class="max-w-[98%] mx-auto px-4 lg:px-6 py-6">
+
+    <!-- ===== STAT SUMMARY CARDS ===== -->
+    <div id="statCards" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 fade-in">
+      <div class="stat-card glass-card rounded-2xl px-5 py-4 shadow-sm">
+        <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Total Invoice</p>
+        <p id="statTotal" class="text-2xl font-black text-slate-800 dark:text-white">—</p>
+      </div>
+      <div class="stat-card glass-card rounded-2xl px-5 py-4 shadow-sm">
+        <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Total Project</p>
+        <p id="statProjects" class="text-2xl font-black text-blue-600 dark:text-blue-400">—</p>
+      </div>
+      <div class="stat-card glass-card rounded-2xl px-5 py-4 shadow-sm">
+        <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Total Client</p>
+        <p id="statClients" class="text-2xl font-black text-indigo-600 dark:text-indigo-400">—</p>
+      </div>
+      <div class="stat-card glass-card rounded-2xl px-5 py-4 shadow-sm">
+        <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Ditampilkan</p>
+        <p id="statShown" class="text-2xl font-black text-emerald-600 dark:text-emerald-400">—</p>
+      </div>
+    </div>
+
+    <!-- ===== ALL DATA COA TABLE CARD ===== -->
+    <div class="glass-card rounded-2xl shadow-lg overflow-hidden fade-in">
+
+      <!-- Card Header + Filter Bar -->
+      <div class="filter-bar px-6 py-4">
+        <div class="flex flex-col md:flex-row md:items-center gap-3 justify-between">
+
+          <!-- Title -->
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18M10 6h4M10 18h4"/>
+              </svg>
+            </div>
+            <div>
+              <h2 class="font-black text-sm text-slate-800 dark:text-white tracking-tight">All Data COA</h2>
+              <p class="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Read-only · Live dari Google Sheets</p>
+            </div>
+          </div>
+
+          <!-- Filter Controls -->
+          <div class="flex flex-wrap items-center gap-2">
+            <select id="filterType" onchange="applyFilter()"
+              class="search-glow text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 outline-none transition-all cursor-pointer">
+              <option value="all">— Semua Data —</option>
+              <option value="project">Filter: Project</option>
+              <option value="client">Filter: Client</option>
+            </select>
+            <select id="filterValue" onchange="applyFilter()" disabled
+              class="search-glow text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 outline-none transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed min-w-[160px]">
+              <option value="">Pilih...</option>
+            </select>
+            <button onclick="resetFilter()"
+              class="text-[10px] font-bold uppercase tracking-widest px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all text-slate-500 dark:text-slate-400">
+              Reset
+            </button>
+            <button onclick="loadData()"
+              class="text-[10px] font-bold uppercase tracking-widest px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition-all flex items-center gap-1.5">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+              Refresh
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div id="allDataTableWrap" class="table-wrap">
+        <!-- Loading skeleton -->
+        <div id="tableLoading" class="flex flex-col items-center justify-center py-20 gap-4">
+          <div class="loader rounded-full border-4 border-t-4 border-blue-200 dark:border-blue-900 h-12 w-12"></div>
+          <p class="text-xs font-semibold text-slate-400 dark:text-slate-500 animate-pulse tracking-widest uppercase">Memuat data...</p>
+        </div>
+        <!-- Empty state -->
+        <div id="tableEmpty" class="hidden flex-col items-center justify-center py-20 gap-3">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-slate-300 dark:text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <p class="text-sm font-semibold text-slate-400">Tidak ada data ditemukan</p>
+        </div>
+        <!-- Actual table -->
+        <table id="allDataTable" class="w-full text-left border-collapse hidden">
+          <thead class="tbl-head sticky-col bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+            <tr id="tableHeader" class="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-black tracking-wider"></tr>
+          </thead>
+          <tbody id="tableBody" class="divide-y divide-slate-100 dark:divide-slate-800/80 text-[11px]"></tbody>
+        </table>
+      </div>
+
+      <!-- Table Footer -->
+      <div class="px-6 py-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
+        <p class="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+          Menampilkan <span id="footerShown" class="font-bold text-slate-600 dark:text-slate-300">0</span> dari
+          <span id="footerTotal" class="font-bold text-slate-600 dark:text-slate-300">0</span> baris
+        </p>
+        <p class="text-[10px] text-slate-300 dark:text-slate-700 font-medium">© COA Manage Portal</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- ========== UPDATE PANEL MODAL (TERSEMBUNYI) ========== -->
+  <div id="updateModal" class="fixed inset-0 modal-overlay z-[200] hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-6xl max-h-[90vh] overflow-auto fade-in">
+
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-t-2xl">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-white font-black text-sm tracking-tight">Update COA Data</h3>
+            <p class="text-blue-200 text-[10px] font-medium">Group Edit Mode · Batch Update E→AF</p>
+          </div>
+        </div>
+        <button onclick="closeUpdateModal()" class="w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition-all text-white">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Modal Filter -->
+      <div class="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+          <div>
+            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Filter By</label>
+            <select id="updateFilterType" onchange="updateDropdownOptions()"
+              class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="project">Project Name</option>
+              <option value="client">Client Name</option>
+            </select>
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Select Entity</label>
+            <select id="updateFilterValue"
+              class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40" disabled>
+              <option value="">Pilih...</option>
+            </select>
+          </div>
+          <button onclick="loadUpdateView()"
+            class="bg-blue-600 hover:bg-blue-700 text-white font-black py-2.5 rounded-xl transition-all text-xs uppercase tracking-widest">
+            Load Data
+          </button>
+        </div>
+        <div id="updateInfo" class="hidden mt-4 bg-blue-50 dark:bg-blue-950/30 rounded-xl p-4 border border-blue-100 dark:border-blue-900/40">
+          <p class="text-xs text-blue-700 dark:text-blue-300">Mengedit <span id="updateCount" class="font-black">0</span> baris secara massal. Perubahan akan diterapkan ke semua baris yang cocok.</p>
+        </div>
+      </div>
+
+      <!-- Modal Table -->
+      <div class="p-6">
+        <div id="updateTableWrap" class="table-wrap border border-slate-200 dark:border-slate-800 rounded-xl">
+          <div id="updateEmptyState" class="flex flex-col items-center justify-center py-12 gap-3">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-slate-300 dark:text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+            </svg>
+            <p class="text-xs font-semibold text-slate-400">Pilih filter lalu klik Load Data</p>
+          </div>
+          <table id="updateTable" class="w-full text-left border-collapse hidden">
+            <thead class="tbl-head sticky-col bg-slate-50 dark:bg-slate-800">
+              <tr id="updateHeader" class="text-[10px] text-slate-500 uppercase font-black tracking-wider"></tr>
+            </thead>
+            <tbody id="updateBody" class="bg-white dark:bg-slate-900"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="px-6 pb-6 flex justify-end gap-3">
+        <button onclick="closeUpdateModal()"
+          class="px-6 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-all uppercase tracking-widest">
+          Batal
+        </button>
+        <button id="saveBtn" onclick="saveChanges()" disabled
+          class="px-8 py-2.5 text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-all uppercase tracking-widest flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+          </svg>
+          Update All
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== LOADING OVERLAY ========== -->
+  <div id="loadingOverlay" class="fixed inset-0 modal-overlay z-[300] hidden flex flex-col items-center justify-center">
+    <div class="bg-white/10 dark:bg-white/5 rounded-2xl px-10 py-8 flex flex-col items-center gap-4 shadow-2xl border border-white/10">
+      <div class="loader rounded-full border-4 border-t-4 border-white/20 h-12 w-12"></div>
+      <p class="text-white font-bold tracking-[0.2em] text-[10px] uppercase animate-pulse">Processing...</p>
+    </div>
+  </div>
+
+  <!-- ========== TOAST NOTIFICATION ========== -->
+  <div id="toast"
+    class="fixed bottom-6 right-6 z-[400] hidden max-w-xs bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-700 px-5 py-4 fade-in">
+    <div class="flex items-start gap-3">
+      <div id="toastIcon" class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"></div>
+      <div>
+        <p id="toastTitle" class="text-xs font-black text-slate-800 dark:text-white"></p>
+        <p id="toastMsg" class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== SCRIPT ========== -->
+  <script>
+    // ================================================================
+    // CONFIG — Ganti dengan URL GAS Web App Anda setelah re-deploy
+    // ================================================================
+    const GAS_API_URL = 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec';
+
+    // ================================================================
+    // GLOBAL STATE
+    // ================================================================
+    let masterData = null;
+    let filteredRows = [];
+    let updateSelection = null;
+    const COL_E = 4;
+    const COL_AF = 31;
+    let statusClickCount = 0;
+    let statusClickTimer = null;
+
+    // ================================================================
+    // INIT
+    // ================================================================
+    window.addEventListener('DOMContentLoaded', () => {
+      initTheme();
+      loadData();
+    });
+
+    // ================================================================
+    // THEME
+    // ================================================================
+    function initTheme() {
+      const dark = localStorage.theme === 'dark'
+        || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.classList.toggle('dark', dark);
+      document.getElementById('sunIcon').classList.toggle('hidden', !dark);
+      document.getElementById('moonIcon').classList.toggle('hidden', dark);
+    }
+
+    function toggleDarkMode() {
+      const isDark = document.documentElement.classList.toggle('dark');
+      localStorage.theme = isDark ? 'dark' : 'light';
+      document.getElementById('sunIcon').classList.toggle('hidden', !isDark);
+      document.getElementById('moonIcon').classList.toggle('hidden', isDark);
+    }
+
+    // ================================================================
+    // STATUS BADGE — Hidden trigger (klik 3x dalam 2 detik)
+    // ================================================================
+    function handleStatusClick() {
+      statusClickCount++;
+      clearTimeout(statusClickTimer);
+      statusClickTimer = setTimeout(() => { statusClickCount = 0; }, 2000);
+      if (statusClickCount >= 3) {
+        statusClickCount = 0;
+        if (masterData) openUpdateModal();
+        else showToast('warning', 'Data Belum Siap', 'Tunggu data selesai dimuat terlebih dahulu.');
+      }
+    }
+
+    // ================================================================
+    // LOAD DATA (fetch from GAS JSON API)
+    // ================================================================
+    async function loadData() {
+      showTableLoading(true);
+      updateStatusBadge('loading', 'LOADING...');
+
+      // Cek apakah GAS_API_URL sudah diisi
+      if (!GAS_API_URL || GAS_API_URL.includes('YOUR_SCRIPT_ID')) {
+        // Demo mode dengan mock data
+        await new Promise(r => setTimeout(r, 600));
+        masterData = buildMockData();
+        onDataLoaded();
+        return;
+      }
+
+      try {
+        const res = await fetch(`${GAS_API_URL}?action=getMasterData`, {
+          method: 'GET',
+          redirect: 'follow'
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        masterData = await res.json();
+        onDataLoaded();
+      } catch (err) {
+        showTableLoading(false);
+        updateStatusBadge('error', 'ERROR');
+        showToast('error', 'Gagal Memuat Data', err.message || 'Periksa koneksi atau GAS API URL.');
+      }
+    }
+
+    function onDataLoaded() {
+      filteredRows = masterData.data.slice();
+      updateStatCards();
+      buildFilterDropdown('main');
+      renderTable(filteredRows);
+      showTableLoading(false);
+      updateStatusBadge('connected', 'DATABASE CONNECTED');
+      showToast('success', 'Data Berhasil Dimuat', `${masterData.data.length} baris dari Google Sheets.`);
+    }
+
+    // ================================================================
+    // STAT CARDS
+    // ================================================================
+    function updateStatCards() {
+      document.getElementById('statTotal').textContent = masterData.data.length.toLocaleString('id');
+      document.getElementById('statProjects').textContent = masterData.projects.length.toLocaleString('id');
+      document.getElementById('statClients').textContent = masterData.clients.length.toLocaleString('id');
+      updateShownStat(masterData.data.length);
+    }
+
+    function updateShownStat(n) {
+      document.getElementById('statShown').textContent = n.toLocaleString('id');
+      document.getElementById('footerShown').textContent = n.toLocaleString('id');
+      document.getElementById('footerTotal').textContent = masterData ? masterData.data.length.toLocaleString('id') : '0';
+    }
+
+    // ================================================================
+    // STATUS BADGE
+    // ================================================================
+    function updateStatusBadge(state, text) {
+      const dot = document.getElementById('statusDot');
+      const label = document.getElementById('statusText');
+      label.textContent = text;
+      dot.className = 'w-2 h-2 rounded-full transition-colors duration-500 ' + {
+        loading: 'bg-yellow-400 animate-pulse',
+        connected: 'bg-emerald-400',
+        error: 'bg-red-500'
+      }[state];
+    }
+
+    // ================================================================
+    // FILTER (Main Table)
+    // ================================================================
+    function buildFilterDropdown(src) {
+      if (!masterData) return;
+      // Ini hanya update filter value dropdown untuk "main" filter
+      const typeEl = document.getElementById('filterType');
+      const valEl = document.getElementById('filterValue');
+      const type = typeEl.value;
+
+      if (type === 'all') {
+        valEl.disabled = true;
+        valEl.innerHTML = '<option value="">Pilih...</option>';
+        return;
+      }
+
+      valEl.disabled = false;
+      const opts = type === 'project' ? masterData.projects : masterData.clients;
+      valEl.innerHTML = '<option value="">— Semua —</option>';
+      opts.forEach(o => {
+        const el = document.createElement('option');
+        el.value = o; el.textContent = o;
+        valEl.appendChild(el);
+      });
+    }
+
+    function applyFilter() {
+      if (!masterData) return;
+      const type = document.getElementById('filterType').value;
+      const val = document.getElementById('filterValue').value;
+
+      buildFilterDropdown('main');
+
+      if (type === 'all' || !val) {
+        filteredRows = masterData.data.slice();
+      } else {
+        filteredRows = masterData.data.filter(row =>
+          type === 'project' ? row.project === val : row.client === val
+        );
+      }
+
+      updateShownStat(filteredRows.length);
+      renderTable(filteredRows);
+    }
+
+    function resetFilter() {
+      document.getElementById('filterType').value = 'all';
+      document.getElementById('filterValue').innerHTML = '<option value="">Pilih...</option>';
+      document.getElementById('filterValue').disabled = true;
+      filteredRows = masterData ? masterData.data.slice() : [];
+      updateShownStat(filteredRows.length);
+      renderTable(filteredRows);
+    }
+
+    // ================================================================
+    // RENDER MAIN TABLE (Read-Only)
+    // ================================================================
+    function renderTable(rows) {
+      const header = document.getElementById('tableHeader');
+      const body = document.getElementById('tableBody');
+      const table = document.getElementById('allDataTable');
+      const empty = document.getElementById('tableEmpty');
+
+      if (!rows || rows.length === 0) {
+        table.classList.add('hidden');
+        empty.classList.remove('hidden');
+        empty.classList.add('flex');
+        return;
+      }
+
+      empty.classList.add('hidden');
+      empty.classList.remove('flex');
+      table.classList.remove('hidden');
+
+      // Build headers (skip index 0/kolom A)
+      header.innerHTML = '';
+      for (let i = 1; i <= COL_AF; i++) {
+        const th = document.createElement('th');
+        th.className = 'px-4 py-3 border-r border-slate-200 dark:border-slate-800 font-black';
+        th.textContent = masterData.headers[i] || `Col ${i}`;
+        header.appendChild(th);
+      }
+
+      // Build rows
+      body.innerHTML = '';
+      rows.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.className = 'tbl-row hover:bg-blue-50/40 dark:hover:bg-blue-950/20';
+        for (let i = 1; i <= COL_AF; i++) {
+          const td = document.createElement('td');
+          const val = row.fullRow[i];
+          const displayVal = (val === null || val === undefined || val === '') ? '—' : String(val);
+          td.className = `px-4 py-2.5 border-r border-slate-100 dark:border-slate-800/60 whitespace-nowrap
+            ${i >= COL_E ? 'text-blue-600 dark:text-blue-400 font-semibold' : 'text-slate-600 dark:text-slate-400 font-medium'}`;
+          td.textContent = displayVal;
+          tr.appendChild(td);
+        }
+        body.appendChild(tr);
+      });
+    }
+
+    // ================================================================
+    // TABLE LOADING STATE
+    // ================================================================
+    function showTableLoading(show) {
+      document.getElementById('tableLoading').classList.toggle('hidden', !show);
+      document.getElementById('allDataTable').classList.toggle('hidden', show || !masterData || filteredRows.length === 0);
+    }
+
+    // ================================================================
+    // UPDATE MODAL
+    // ================================================================
+    function openUpdateModal() {
+      document.getElementById('updateModal').classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      updateDropdownOptions();
+      showToast('info', 'Mode Update Aktif', 'Panel tersembunyi berhasil dibuka.');
+    }
+
+    function closeUpdateModal() {
+      document.getElementById('updateModal').classList.add('hidden');
+      document.body.style.overflow = '';
+      // Reset update state
+      document.getElementById('updateTable').classList.add('hidden');
+      document.getElementById('updateEmptyState').classList.remove('hidden');
+      document.getElementById('updateInfo').classList.add('hidden');
+      document.getElementById('saveBtn').disabled = true;
+      updateSelection = null;
+    }
+
+    function updateDropdownOptions() {
+      if (!masterData) return;
+      const type = document.getElementById('updateFilterType').value;
+      const valEl = document.getElementById('updateFilterValue');
+      const opts = type === 'project' ? masterData.projects : masterData.clients;
+      valEl.innerHTML = '<option value="">Pilih...</option>';
+      opts.forEach(o => {
+        const el = document.createElement('option');
+        el.value = o; el.textContent = o;
+        valEl.appendChild(el);
+      });
+      valEl.disabled = false;
+    }
+
+    function loadUpdateView() {
+      const type = document.getElementById('updateFilterType').value;
+      const val = document.getElementById('updateFilterValue').value;
+      if (!val) { showToast('warning', 'Filter Kosong', 'Pilih entity terlebih dahulu.'); return; }
+
+      updateSelection = { type, val };
+      const rows = masterData.data.filter(r => type === 'project' ? r.project === val : r.client === val);
+
+      document.getElementById('updateCount').textContent = rows.length;
+      document.getElementById('updateInfo').classList.remove('hidden');
+
+      const header = document.getElementById('updateHeader');
+      const body = document.getElementById('updateBody');
+
+      header.innerHTML = '';
+      for (let i = COL_E; i <= COL_AF; i++) {
+        const th = document.createElement('th');
+        th.className = 'px-4 py-3 border-r dark:border-slate-700 text-center font-black';
+        th.textContent = masterData.headers[i] || `Col ${i}`;
+        header.appendChild(th);
+      }
+
+      body.innerHTML = '';
+      const rep = rows[0];
+      const tr = document.createElement('tr');
+      tr.className = 'bg-white dark:bg-slate-900 divide-x divide-slate-200 dark:divide-slate-700';
+      for (let i = COL_E; i <= COL_AF; i++) {
+        const td = document.createElement('td');
+        td.className = 'p-0';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = (rep && rep.fullRow) ? (rep.fullRow[i] ?? '') : '';
+        input.className = 'cell-input';
+        input.dataset.colIdx = i;
+        td.appendChild(input);
+        tr.appendChild(td);
+      }
+      body.appendChild(tr);
+
+      document.getElementById('updateEmptyState').classList.add('hidden');
+      document.getElementById('updateTable').classList.remove('hidden');
+      document.getElementById('saveBtn').disabled = false;
+    }
+
+    // ================================================================
+    // SAVE CHANGES (POST to GAS)
+    // ================================================================
+    async function saveChanges() {
+      if (!updateSelection) return;
+      const inputs = document.querySelectorAll('#updateBody input');
+      const newVals = Array.from(inputs).map(i => i.value);
+      const count = document.getElementById('updateCount').textContent;
+
+      if (!confirm(`Update ${count} baris untuk ${updateSelection.type} "${updateSelection.val}"?\n\nAksi ini tidak dapat dibatalkan.`)) return;
+
+      showLoading(true);
+
+      // Demo mode
+      if (!GAS_API_URL || GAS_API_URL.includes('YOUR_SCRIPT_ID')) {
+        await new Promise(r => setTimeout(r, 800));
+        showLoading(false);
+        showToast('success', 'Demo Mode', 'Update berhasil (mode demo).');
+        closeUpdateModal();
+        return;
+      }
+
+      try {
+        const res = await fetch(GAS_API_URL, {
+          method: 'POST',
+          redirect: 'follow',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'updateGroupedData',
+            filterType: updateSelection.type,
+            filterValue: updateSelection.val,
+            newValues: newVals
+          })
+        });
+        const data = await res.json();
+        showLoading(false);
+        if (data.success) {
+          showToast('success', 'Update Berhasil', data.message);
+          closeUpdateModal();
+          loadData(); // Refresh data
+        } else {
+          showToast('error', 'Update Gagal', data.message);
+        }
+      } catch (err) {
+        showLoading(false);
+        showToast('error', 'Error', err.message);
+      }
+    }
+
+    // ================================================================
+    // MOCK DATA (Demo Mode)
+    // ================================================================
+    function buildMockData() {
+      const projects = ['Alpha Project', 'Beta Infrastructure', 'Gamma Build', 'Delta Services'];
+      const clients = ['PT. Nusantara Corp', 'CV. Maju Bersama', 'PT. Teknologi Indo', 'PT. Sinergi Utama'];
+      const headers = Array.from({ length: 32 }, (_, i) => {
+        const labels = ['ID', 'Client', 'Project', 'Description',
+          'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+          'Q1', 'Q2', 'Q3', 'Q4', 'H1', 'H2', 'Total',
+          'Status', 'PIC', 'Keterangan', 'Pajak', 'Net',
+          'Termin', 'Due Date', 'Lunas', 'Saldo'];
+        return labels[i] || `Col ${i}`;
+      });
+
+      const data = [];
+      let rowNum = 3;
+      projects.forEach((proj, pi) => {
+        const client = clients[pi % clients.length];
+        const count = 3 + Math.floor(Math.random() * 4);
+        for (let k = 0; k < count; k++) {
+          const fullRow = Array.from({ length: 32 }, (_, i) => {
+            if (i === 0) return `INV-${String(rowNum).padStart(4, '0')}`;
+            if (i === 1) return client;
+            if (i === 2) return proj;
+            if (i === 3) return `Pekerjaan ${k + 1} — ${proj}`;
+            const v = Math.floor(Math.random() * 50000000) + 5000000;
+            return i >= 4 && i <= 19 ? v.toLocaleString('id') : i === 22 ? (v * 12).toLocaleString('id') : '';
+          });
+          data.push({ rowNum: rowNum++, client, project: proj, fullRow });
+        }
+      });
+
+      return {
+        headers,
+        data,
+        projects,
+        clients
+      };
+    }
+
+    // ================================================================
+    // OVERLAY & TOAST
+    // ================================================================
+    function showLoading(s) {
+      document.getElementById('loadingOverlay').classList.toggle('hidden', !s);
+    }
+
+    let toastTimer = null;
+    function showToast(type, title, msg) {
+      const toast = document.getElementById('toast');
+      const icon = document.getElementById('toastIcon');
+      const titleEl = document.getElementById('toastTitle');
+      const msgEl = document.getElementById('toastMsg');
+
+      const configs = {
+        success: { bg: 'bg-emerald-100 dark:bg-emerald-900/40', text: 'text-emerald-600', svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>' },
+        error:   { bg: 'bg-red-100 dark:bg-red-900/40',     text: 'text-red-600',     svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>' },
+        warning: { bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-600',   svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v4m0 4h.01M12 3a9 9 0 110 18 9 9 0 010-18z"/>' },
+        info:    { bg: 'bg-blue-100 dark:bg-blue-900/40',   text: 'text-blue-600',    svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M12 3a9 9 0 110 18 9 9 0 010-18z"/>' }
+      };
+      const c = configs[type] || configs.info;
+
+      icon.className = `w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${c.bg}`;
+      icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ${c.text}" fill="none" viewBox="0 0 24 24" stroke="currentColor">${c.svg}</svg>`;
+      titleEl.textContent = title;
+      msgEl.textContent = msg;
+
+      toast.classList.remove('hidden');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.add('hidden'), 4500);
+    }
+  </script>
+</body>
+
+</html>inde
