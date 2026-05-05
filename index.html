@@ -129,6 +129,18 @@
             background: rgba(96, 165, 250, 0.1);
         }
 
+        /* Sel yang sudah diedit / dirty */
+        .cell-dirty {
+            outline: 2px solid #f59e0b !important;
+            background: rgba(245, 158, 11, 0.08) !important;
+            color: #b45309 !important;
+        }
+
+        .dark .cell-dirty {
+            background: rgba(245, 158, 11, 0.12) !important;
+            color: #fbbf24 !important;
+        }
+
         /* ===== NAV ACTIVE ===== */
         .nav-pill.active {
             background: rgba(59, 130, 246, 0.12);
@@ -819,10 +831,18 @@
             const header = document.getElementById('updateHeader');
             const body = document.getElementById('updateBody');
 
+            // Build header dengan badge dirty counter
             header.innerHTML = '';
+            // Tambah kolom header untuk dirty badge
+            const thLabel = document.createElement('th');
+            thLabel.className = 'px-4 py-3 border-r dark:border-slate-700 text-center font-black text-amber-500 whitespace-nowrap';
+            thLabel.id = 'dirtyBadgeTh';
+            thLabel.innerHTML = '<span id="dirtyBadge" class="text-[10px]">0 kolom diubah</span>';
+            header.appendChild(thLabel);
             for (let i = COL_E; i <= COL_AF; i++) {
                 const th = document.createElement('th');
                 th.className = 'px-4 py-3 border-r dark:border-slate-700 text-center font-black';
+                th.id = `th_col_${i}`;
                 th.textContent = masterData.headers[i] || `Col ${i}`;
                 header.appendChild(th);
             }
@@ -831,14 +851,35 @@
             const rep = rows[0];
             const tr = document.createElement('tr');
             tr.className = 'bg-white dark:bg-slate-900 divide-x divide-slate-200 dark:divide-slate-700';
+
+            // Kolom status per-baris
+            const tdStatus = document.createElement('td');
+            tdStatus.className = 'px-3 py-2 text-center text-[10px] font-bold text-slate-400 whitespace-nowrap';
+            tdStatus.id = 'rowDirtyStatus';
+            tdStatus.textContent = 'Belum ada perubahan';
+            tr.appendChild(tdStatus);
+
             for (let i = COL_E; i <= COL_AF; i++) {
                 const td = document.createElement('td');
                 td.className = 'p-0';
+                const originalVal = (rep && rep.fullRow) ? String(rep.fullRow[i] ?? '') : '';
                 const input = document.createElement('input');
                 input.type = 'text';
-                input.value = (rep && rep.fullRow) ? (rep.fullRow[i] ?? '') : '';
+                input.value = originalVal;
                 input.className = 'cell-input';
                 input.dataset.colIdx = i;
+                input.dataset.original = originalVal;  // simpan nilai asli
+
+                // Listener: highlight jika berubah dari original
+                input.addEventListener('input', () => {
+                    const isDirty = input.value !== input.dataset.original;
+                    input.classList.toggle('cell-dirty', isDirty);
+                    // Update header kolom
+                    const thCol = document.getElementById(`th_col_${i}`);
+                    if (thCol) thCol.classList.toggle('text-amber-500', isDirty);
+                    updateDirtyBadge();
+                });
+
                 td.appendChild(input);
                 tr.appendChild(td);
             }
@@ -849,16 +890,52 @@
             document.getElementById('saveBtn').disabled = false;
         }
 
+        // Hitung dan tampilkan jumlah kolom yang berubah
+        function updateDirtyBadge() {
+            const inputs = document.querySelectorAll('#updateBody input');
+            const dirtyCount = Array.from(inputs).filter(inp => inp.value !== inp.dataset.original).length;
+            const badge = document.getElementById('dirtyBadge');
+            const statusEl = document.getElementById('rowDirtyStatus');
+            if (badge) {
+                badge.textContent = dirtyCount > 0
+                    ? `${dirtyCount} kolom diubah`
+                    : '0 kolom diubah';
+                badge.className = dirtyCount > 0
+                    ? 'text-[10px] font-black text-amber-500'
+                    : 'text-[10px] text-slate-400';
+            }
+            if (statusEl) {
+                statusEl.textContent = dirtyCount > 0 ? `${dirtyCount} diubah` : 'Belum ada perubahan';
+                statusEl.className = `px-3 py-2 text-center text-[10px] font-bold whitespace-nowrap ${
+                    dirtyCount > 0 ? 'text-amber-500' : 'text-slate-400'
+                }`;
+            }
+        }
+
         // ================================================================
-        // SAVE CHANGES (POST to GAS)
+        // SAVE CHANGES (POST to GAS — hanya kolom yang berubah)
         // ================================================================
         async function saveChanges() {
             if (!updateSelection) return;
             const inputs = document.querySelectorAll('#updateBody input');
-            const newVals = Array.from(inputs).map(i => i.value);
             const count = document.getElementById('updateCount').textContent;
 
-            if (!confirm(`Update ${count} baris untuk ${updateSelection.type} "${updateSelection.val}"?\n\nAksi ini tidak dapat dibatalkan.`)) return;
+            // Kumpulkan HANYA kolom yang berbeda dari nilai aslinya
+            const changedColumns = Array.from(inputs)
+                .filter(inp => inp.value !== inp.dataset.original)
+                .map(inp => ({ colIdx: parseInt(inp.dataset.colIdx), value: inp.value }));
+
+            if (changedColumns.length === 0) {
+                showToast('warning', 'Tidak Ada Perubahan', 'Edit minimal satu kolom sebelum menyimpan.');
+                return;
+            }
+
+            const colNames = changedColumns.map(c => masterData.headers[c.colIdx] || `Col ${c.colIdx}`).join(', ');
+            if (!confirm(
+                `Update ${count} baris untuk ${updateSelection.type} "${updateSelection.val}"?\n\n` +
+                `Kolom yang akan diubah (${changedColumns.length}): ${colNames}\n\n` +
+                `Aksi ini tidak dapat dibatalkan.`
+            )) return;
 
             showLoading(true);
 
@@ -866,14 +943,13 @@
             if (!GAS_API_URL || GAS_API_URL.includes('YOUR_SCRIPT_ID')) {
                 await new Promise(r => setTimeout(r, 800));
                 showLoading(false);
-                showToast('success', 'Demo Mode', 'Update berhasil (mode demo).');
+                showToast('success', 'Demo Mode', `${changedColumns.length} kolom diupdate (mode demo).`);
                 closeUpdateModal();
                 return;
             }
 
             try {
                 // Kirim sebagai text/plain untuk menghindari CORS preflight
-                // GAS tidak support OPTIONS preflight, tapi tetap bisa baca e.postData.contents
                 const res = await fetch(GAS_API_URL, {
                     method: 'POST',
                     redirect: 'follow',
@@ -882,7 +958,7 @@
                         action: 'updateGroupedData',
                         filterType: updateSelection.type,
                         filterValue: updateSelection.val,
-                        newValues: newVals
+                        changedColumns: changedColumns  // hanya kolom yang diubah
                     })
                 });
                 const text = await res.text();
